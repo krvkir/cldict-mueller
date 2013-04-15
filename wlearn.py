@@ -1,10 +1,15 @@
 #!/usr/bin/python2
 
-import sys
+import os, sys
 from lib import *
 
-finder = WordFinder()
-keeper = WordKeeper()
+if os.path.islink(__file__):
+    basedir = os.path.dirname(os.readlink(__file__))
+else:
+    basedir = os.path.dirname(__file__)
+
+finder = WordFinder(basedir + '/dict/mueller7/mueller7')
+keeper = WordKeeper(basedir + '/worddb.sqlite3')
 templater = WordTemplater()
 
 # Searching in infinite loop
@@ -25,11 +30,3 @@ while True:
         templater.print_word(data)
     else:
         print("Not found.")
-
-    
-#    for [transcription, speech_parts] in finder.find_word(line):
-#        print('[ %s ]' % transcription)
-#        for speech_part, items in speech_parts.items():
-#            print(speech_part)
-#            for meanings in items:
-#                print("\t" + meanings[0])

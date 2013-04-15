@@ -1,4 +1,4 @@
-import sys, re, sqlite3
+import os, sys, re, sqlite3
 import dictdlib
 sqlite3.paramstyle = 'qmark'
 
@@ -91,8 +91,12 @@ class WordKeeper(object):
 class WordFinder(object):
     """ Incapsulates word-finding and parsing functions """
 
-    def __init__(self):
-        self.dictdb = dictdlib.DictDB('dict/mueller7/mueller7', 'read')
+    def __init__(self, path='dict/mueller7/mueller7'):
+        try:
+            self.dictdb = dictdlib.DictDB(path, 'read')
+        except IOError as e:
+            print('Cannot find the dictionary, exiting.')
+            exit()
 
     def find_word(self, word):
         """
