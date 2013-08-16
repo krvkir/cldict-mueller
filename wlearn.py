@@ -1,8 +1,15 @@
 #!/usr/bin/python2
 
 import os, sys
+import argparse
 from lib import *
 
+# Input parameters
+parser = argparse.ArgumentParser()
+parser.add_argument("num", help="Режим тестирования")
+args = parser.parse_args()
+
+# Getting path to dictionary
 if os.path.islink(__file__):
     fname = os.readlink(__file__)
 else:
