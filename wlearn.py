@@ -4,9 +4,10 @@ import os, sys
 from lib import *
 
 if os.path.islink(__file__):
-    basedir = os.path.dirname(os.readlink(__file__))
+    fname = os.readlink(__file__)
 else:
-    basedir = os.path.dirname(__file__)
+    fname = __file__
+basedir = os.path.dirname(os.path.abspath(fname))
 
 finder = WordFinder(basedir + '/dict/mueller7/mueller7')
 keeper = WordKeeper(basedir + '/worddb.sqlite3')
