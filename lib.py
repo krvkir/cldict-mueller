@@ -83,7 +83,11 @@ class WordKeeper(object):
 
     def get_words_list(self):
         cur = self.conn.cursor()
-        cur.execute('SELECT word FROM words;')
+        cur.execute('SELECT words.word, COUNT(*) cnt \
+            FROM words, searches \
+            WHERE words.ROWID=searches.wordid \
+            GROUP BY searches.wordid \
+            ORDER BY cnt;')
         return cur.fetchall()
 
 

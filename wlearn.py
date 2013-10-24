@@ -1,4 +1,5 @@
 #!/usr/bin/python2
+# -*- coding: UTF-8 -*-
 
 import os, sys
 import argparse
@@ -28,7 +29,7 @@ while True:
     except KeyboardInterrupt as e:
         print("\nLeaving.\033[0m")
         for record in keeper.get_words_list():
-            print(record[0])
+            print("%s:\t%i" % (record[0], record[1]))
         exit()
     print "\033[0m",
 
