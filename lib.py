@@ -1,14 +1,18 @@
-import os, sys, re, sqlite3
-import dictdlib
-sqlite3.paramstyle = 'qmark'
+import re
+import sqlite3
+import time
 
+import dictdlib
+from pprint import pprint
+
+sqlite3.paramstyle = 'qmark'
 
 
 class WordTemplater(object):
     sep = "\t"
 
     def print_word(self, data):
-        word = data[0]
+        # word = data[0]
         meaning_tree = data[1]
 
         if 'unparsed' in meaning_tree:
@@ -23,7 +27,7 @@ class WordTemplater(object):
 
     def print_piece(self, piece):
         for num, group in enumerate(piece):
-            #print "  %i" % num,
+            # print "  %i" % num,
             self.print_group(group)
         return
 
@@ -33,28 +37,30 @@ class WordTemplater(object):
             print(2*self.sep + "\033[0;35m%s\033[0m" % meaning)
 
 
-
 class WordKeeper(object):
     """
     Database interface
     """
 
-    def __init__(self, dbname = 'worddb.sqlite3'):
+    def __init__(self, dbname='worddb.sqlite3'):
         """ Establishes connection with database """
 
         # Creating connection
         self.conn = sqlite3.connect(dbname)
         cur = self.conn.cursor()
-       
+
         # For debugging
-        #cur.execute('DROP TABLE IF EXISTS words;')
-        #cur.execute('DROP TABLE IF EXISTS searches;')
-        #cur.execute('DROP TABLE IF EXISTS tests;') 
-        
+        # cur.execute('DROP TABLE IF EXISTS words;')
+        # cur.execute('DROP TABLE IF EXISTS searches;')
+        # cur.execute('DROP TABLE IF EXISTS tests;')
+
         # Creating tables if not exist yet
-        cur.execute('CREATE TABLE IF NOT EXISTS words (word CHARACTER(50), active);')
-        cur.execute('CREATE TABLE IF NOT EXISTS searches (wordid, timestamp);')
-        cur.execute('CREATE TABLE IF NOT EXISTS tests (wordid, timestamp, success);')
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS words (word CHARACTER(50), active);')
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS searches (wordid, timestamp);')
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS tests (wordid, timestamp, success);')
         cur.close()
         return
 
@@ -63,33 +69,50 @@ class WordKeeper(object):
         self.conn.close()
 
     def add_word(self, word):
-        """ Adds word to the database (if not in it already) and logs the time of the query """
+        """ Adds word to the database (if not in it already)
+        and logs the time of the query 
+        """
 
         cur = self.conn.cursor()
-        row = cur.execute('SELECT ROWID FROM words WHERE word=?', [word]).fetchone()
+        row = cur.execute(
+            'SELECT ROWID FROM words WHERE word=?', [word]).fetchone()
         if row:
             # Word already in DB
             wordid = row[0]
         else:
             # Word is queried at first time
-            cur.execute("INSERT INTO words (word, active) VALUES (?, 1)", [word])
-            wordid = cur.execute('SELECT ROWID FROM words WHERE word=?', [word]).fetchone()[0]
+            cur.execute(
+                "INSERT INTO words (word, active) VALUES (?, 1)", [word])
+            wordid = cur.execute(
+                'SELECT ROWID FROM words WHERE word=?', [word]
+            ).fetchone()[0]
 
         # Logging search attempt
-        cur.execute('INSERT INTO searches (wordid, timestamp) VALUES (?, strftime("%s"));', [wordid])
+        cur.execute(
+            'INSERT INTO searches (wordid, timestamp)\
+            VALUES (?, strftime("%s"));',
+            [wordid])
 
         cur.close()
         self.conn.commit()
 
-    def get_words_list(self):
-        cur = self.conn.cursor()
-        cur.execute('SELECT words.word, COUNT(*) cnt \
+    def get_words_list(self, ts_from=0, ts_to=None):
+        # Handling request conditions
+        if ts_to is None:
+            ts_to = time.time() + 1
+        where_values = [ts_from, ts_to]
+        query = "SELECT words.word, COUNT(*) cnt \
             FROM words, searches \
             WHERE words.ROWID=searches.wordid \
+                AND strftime('%s', timestamp) \
+                    BETWEEN strftime('%s', ?) AND strftime('%s', ?)\
             GROUP BY searches.wordid \
-            ORDER BY cnt;')
-        return cur.fetchall()
+            ORDER BY cnt"
 
+        # Requesting
+        cur = self.conn.cursor()
+        cur.execute(query, where_values)
+        return cur.fetchall()
 
 
 class WordFinder(object):
@@ -119,7 +142,7 @@ class WordFinder(object):
                 try:
                     ret.append(self.parse_mueller(article))
                 except Exception as e:
-                    ret.append({'unparsed' : article})
+                    ret.append({'unparsed': article})
         else:
             # Word not found
             ret = None
@@ -132,21 +155,21 @@ class WordFinder(object):
         text = re.sub(r"\n|\t", ' ', text)
         text = re.sub(r"\s+", ' ', text)
         return text
-   
+
     @staticmethod
     def parse_mueller(article):
-        """ Parse Mueller's dictionary article into structure 
+        """ Parse Mueller's dictionary article into structure
         Structure:
         [tracscription, speech_parts]
         speech_parts = {
-            'n' : [ [tr1_1, tr1_2, ...], 
-                    [tr2_1, tr2_2, ...], 
-                    ... ], 
+            'n' : [ [tr1_1, tr1_2, ...],
+                    [tr2_1, tr2_2, ...],
+                    ... ],
             ...,
             'v' : ... }
         """
         speech_parts = {}
-    
+
         # Whole article level
         items = re.split(r'[0-9]\.', article)
 
@@ -157,7 +180,7 @@ class WordFinder(object):
 
         transcription = re.sub(r'.*\[|\].*', '', items[0])
         transcription = WordFinder.trim(transcription)
-    
+
         for item in items[1:]:
             # Speech parts level
             subitems = re.split(r'[0-9]{1,}\)', item)
@@ -168,13 +191,27 @@ class WordFinder(object):
                 speech_part = WordFinder.trim(re.sub(r'_', '', speech_part))
                 subitems.append(tmp)
             else:
-                speech_part = WordFinder.trim(re.sub(r'_(\w)\.', r"\1", subitems[0]))
+                speech_part = WordFinder.trim(
+                    re.sub(r'_(\w)\.', r"\1", subitems[0]))
 
             speech_parts[speech_part] = []
-    
+
             for subitem in subitems[1:]:
                 # Translations level
                 meanings = map(WordFinder.trim, re.split(r';\s*', subitem))
                 speech_parts[speech_part].append(meanings)
 
-        return {'transcription' : transcription, 'pieces' : speech_parts}
+        return {
+            'transcription': transcription,
+            'pieces': speech_parts
+        }
+
+
+if __name__ == '__main__':
+    # Testing the word search time filtering
+    import time
+    ts = time.time() - 3600
+
+    keeper = WordKeeper("./worddb.sqlite3")
+    l = keeper.get_words_list(ts_from=ts)
+    pprint(l)
